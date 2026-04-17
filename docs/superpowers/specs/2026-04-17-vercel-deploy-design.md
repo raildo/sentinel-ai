@@ -60,6 +60,26 @@ Replace the current README (which references AI Studio and a personal app URL) w
 
 ---
 
+## 5. Team Page & README Credits
+
+**Team data:**
+- GRUPO 12 — FIAP Pós Tech Management
+- Felipe Lima Santos — linkedin.com/in/felipe-lima-santos
+- Gabriela Gopfert — linkedin.com/in/gabrielagopfert
+- Guilherme Zuliani — linkedin.com/in/guilherme-zuliani
+- Rafael Massarollo — linkedin.com/in/rafael-massarollo
+- Raildo Mascena — linkedin.com/in/raildomascena
+
+**README:** Add a "Team" section at the bottom with the group name and each member's name linked to their LinkedIn profile.
+
+**Demo — new "Team" screen:**
+- Add a new `ScreenType` value (`'team'`) to `App.tsx`
+- Create `src/components/Team.tsx` — displays the group name, course, and a card for each member with their name and a LinkedIn link
+- Add a "Team" entry to the `Sidebar` component so users can navigate to the screen
+- Style consistent with the existing dark theme (`bg-[#0d0e11]`, zinc palette)
+
+---
+
 ## Out of Scope
 
 - Adding real API calls (Gemini or otherwise)
