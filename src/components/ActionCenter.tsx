@@ -33,11 +33,11 @@ export const ActionCenter = () => {
   };
 
   const scripts = {
-    python: `import sentinel_sdk
+    python: `import secureai_sdk
 
 def contain_incident(incident_id):
-    # Initialize Sentinel Agent
-    agent = sentinel_sdk.connect("DC-01.local")
+    # Initialize SecureAI Agent
+    agent = secureai_sdk.connect("DC-01.local")
     
     print(f"[*] Starting isolation for {incident_id}")
     
@@ -62,7 +62,7 @@ Disable-ADAccount -Identity "svc_remotemgmt"
 Write-Host "[+] Service Account Disabled"
 
 # Firewall Block
-New-NetFirewallRule -DisplayName "Sentinel Block" -Direction Outbound -Action Block -RemoteAddress 185.122.45.10`,
+New-NetFirewallRule -DisplayName "SecureAI Block" -Direction Outbound -Action Block -RemoteAddress 185.122.45.10`,
     bash: `# Linux Containment Script
 iptables -A OUTPUT -d 185.122.45.10 -j DROP
 echo "[+] Blocked C2 IP on local firewall"
@@ -73,7 +73,7 @@ echo "[!] SSH service suspended to prevent persistence"`
 
   const handleExecute = () => {
     setExecuting(true);
-    setLog(["Initializing Sentinel Bridge...", "Connecting to DC-01...", "Authenticating via Tier 3 credentials..."]);
+    setLog(["Initializing SecureAI Bridge...", "Connecting to DC-01...", "Authenticating via Tier 3 credentials..."]);
     
     setTimeout(() => {
       setLog(prev => [...prev, "Check: Network Isolation... OK", "Action: Killing PowerShell PID 8412... OK", "Reporting: Mitigation complete."]);

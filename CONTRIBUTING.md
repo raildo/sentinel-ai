@@ -1,4 +1,4 @@
-# Contributing to Sentinel AI
+# Contributing to SecureAI Analyst
 
 ## Prerequisites
 

@@ -34,7 +34,7 @@ export const Sidebar = ({ currentScreen, onScreenChange }: SidebarProps) => {
           <ShieldAlert size={20} />
         </div>
         <div className="flex flex-col">
-          <span className="text-text-primary font-bold leading-none tracking-tight">Sentinel Cyber</span>
+          <span className="text-text-primary font-bold leading-none tracking-tight">SecureAI Analyst</span>
           <span className="text-[10px] text-accent font-mono tracking-widest uppercase mt-1">AI Division</span>
         </div>
       </div>

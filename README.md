@@ -1,4 +1,4 @@
-# Sentinel AI — Cyber Incident Responder
+# SecureAI Analyst — Cyber Incident Responder
 
 An AI-powered cybersecurity incident triage and response demo built for FIAP Pós Tech Management.
 
