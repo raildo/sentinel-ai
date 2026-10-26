@@ -1,5 +1,9 @@
 # SecureAI Analyst — Cyber Incident Responder
 
+[![CI](https://github.com/raildo/sentinel-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/raildo/sentinel-ai/actions/workflows/ci.yml)
+
+> The repository is named `sentinel-ai`; the product is SecureAI Analyst.
+
 An AI-powered cybersecurity incident triage and response demo built for FIAP Pós Tech Management.
 
 ## Tech Stack
