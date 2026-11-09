@@ -98,3 +98,58 @@ jobs:
           path: .
           format: cyclonedx-json
           artifact-name: sbom.cdx.json
+
+  depcheck:
+    name: Dependency boundaries (depcruise)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run depcheck
+
+  dast:
+    name: DAST (ZAP baseline)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    env:
+      PREVIEW_URL: ${{ vars.PREVIEW_URL }}
+    steps:
+      - name: Check preview URL
+        id: gate
+        run: |
+          if [ -z "$PREVIEW_URL" ]; then
+            echo "::notice::vars.PREVIEW_URL not set, skipping DAST (ZAP baseline)."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.run == 'true'
+        uses: zaproxy/action-baseline@7c4deb10e6261301961c86d65d54a516394f9aed # v0.14.0
+        with:
+          target: ${{ vars.PREVIEW_URL }}
+          allow_issue_writing: false
+          fail_action: true
+
+  provenance:
+    name: Build provenance
+    needs: [build, depcheck]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: dist
+          path: dist
+      - uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: dist/**
