@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 22 (see `.nvmrc`)
 - npm
 
 ## Local Setup
@@ -53,3 +53,19 @@ All incidents, MITRE techniques, and audit logs live in `src/constants.ts`. To a
 - TypeScript strict mode — no `any`
 - Tailwind for all styling — no inline styles
 - No external state management — React `useState` only
+
+## Definition of Done
+
+A change is done only when all of these hold:
+
+- Threat model: if the change touches the explanation flow, the audit trail, pseudonymization, tenancy or the Containment Executor, update `docs/threat-model/` (STRIDE and LINDDUN) in the same PR.
+- No open high finding: no high-level item open in `docs/riscos.md` or in the threat model without a named owner and a mitigation, and no high or critical finding from `npm audit` or code review.
+- ADR for structural decisions: data model, trust boundary, external dependency or model usage changes need a new or updated ADR in `docs/adr/` (context, decision, discarded alternative, reversal criterion).
+- Contracts: API or event changes update `docs/contracts/openapi.yaml` or `asyncapi.yaml`.
+- Prompts: changes to the explainer prompt create a new version under `prompts/explainer/`, never edit a released one.
+- `npm run typecheck` and `npm run build` pass.
+- Metrics shown in the UI stay aggregated (never per analyst) and simulated data stays labeled as simulated.
+
+## CI: DAST job
+
+The `dast` job (ZAP baseline) scans a deployed preview. It reads the repository variable `PREVIEW_URL` (Settings > Secrets and variables > Actions > Variables). Without it the job prints a notice and is skipped, so a green pipeline does not prove a DAST scan ran. Set `PREVIEW_URL` to the preview deployment URL to enable it.

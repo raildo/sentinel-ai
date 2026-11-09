@@ -1,0 +1,120 @@
+asyncapi: 2.6.0
+info:
+  title: SecureAI Analyst Events
+  version: 1.0.0
+  description: >
+    CloudEvents 1.0 (structured JSON mode) used between ingestion, analysis
+    and decision services. Contract proposal. Webhooks to SOAR/ITSM are signed.
+defaultContentType: application/cloudevents+json
+channels:
+  alerts/received:
+    description: A normalized alert entered the platform.
+    publish:
+      operationId: publishAlertaRecebido
+      message:
+        $ref: '#/components/messages/AlertaRecebido'
+  decisions/validated:
+    description: A validated analyst decision was written to the chain.
+    publish:
+      operationId: publishDecisaoDoAnalistaValidada
+      message:
+        $ref: '#/components/messages/DecisaoDoAnalistaValidada'
+components:
+  messages:
+    AlertaRecebido:
+      name: AlertaRecebido
+      title: Alert received
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/AlertaRecebidoEvent'
+      examples:
+        - payload:
+            specversion: '1.0'
+            id: 'evt-0001'
+            source: '/ingestion/sentinel'
+            type: 'com.secureai.alerta.recebido.v1'
+            time: '2026-01-01T10:00:00Z'
+            datacontenttype: application/json
+            tenantid: 'tenant-demo'
+            data:
+              incidentId: 'INC-0001'
+              origin: Sentinel
+              ocsfClass: detection_finding
+              severity: high
+              host: 'host-demo-01'
+    DecisaoDoAnalistaValidada:
+      name: DecisaoDoAnalistaValidada
+      title: Analyst decision validated
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '#/components/schemas/DecisaoValidadaEvent'
+      examples:
+        - payload:
+            specversion: '1.0'
+            id: 'evt-0002'
+            source: '/decision/api'
+            type: 'com.secureai.decisao.analista.validada.v1'
+            time: '2026-01-01T10:05:00Z'
+            datacontenttype: application/json
+            tenantid: 'tenant-demo'
+            data:
+              decisionId: 'DEC-0001'
+              incidentId: 'INC-0001'
+              action: accept
+              rapidAccept: false
+              scoreModelVersion: 'score-model v0.3'
+              promptVersion: 'explainer/v1'
+              hash: 'sha256-hex-placeholder'
+              prevHash: 'sha256-hex-placeholder'
+  schemas:
+    CloudEventBase:
+      type: object
+      required: [specversion, id, source, type, time, tenantid]
+      properties:
+        specversion: { type: string, const: '1.0' }
+        id: { type: string }
+        source: { type: string }
+        type: { type: string }
+        time: { type: string, format: date-time }
+        datacontenttype: { type: string }
+        tenantid:
+          type: string
+          description: CloudEvents extension attribute, copied from the verified token.
+        signature:
+          type: string
+          description: Extension attribute with HMAC-SHA256 over the canonical event, used on webhooks to SOAR/ITSM.
+    AlertaRecebidoEvent:
+      allOf:
+        - $ref: '#/components/schemas/CloudEventBase'
+        - type: object
+          required: [data]
+          properties:
+            type: { type: string, const: 'com.secureai.alerta.recebido.v1' }
+            data:
+              type: object
+              required: [incidentId, origin, ocsfClass, severity, host]
+              properties:
+                incidentId: { type: string }
+                origin: { type: string, enum: [Sentinel, Splunk] }
+                ocsfClass: { type: string }
+                severity: { type: string, enum: [critical, high, medium, low] }
+                host: { type: string }
+    DecisaoValidadaEvent:
+      allOf:
+        - $ref: '#/components/schemas/CloudEventBase'
+        - type: object
+          required: [data]
+          properties:
+            type: { type: string, const: 'com.secureai.decisao.analista.validada.v1' }
+            data:
+              type: object
+              required: [decisionId, incidentId, action, rapidAccept, scoreModelVersion, promptVersion, hash, prevHash]
+              properties:
+                decisionId: { type: string }
+                incidentId: { type: string }
+                action: { type: string, enum: [accept, diverge, mark_wrong] }
+                rapidAccept: { type: boolean }
+                scoreModelVersion: { type: string }
+                promptVersion: { type: string }
+                hash: { type: string }
+                prevHash: { type: string }
