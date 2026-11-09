@@ -4,7 +4,7 @@ import type { AnalystDecision, DecisionRecord, Incident, Severity } from '../../
 import { TECHNIQUES } from '../../constants';
 import { useDecisionStore } from '../../state/DecisionStore';
 
-type Props = { incident: Incident; topTechniqueId: string };
+type Props = { incident: Incident; topTechniqueId: string; onRecorded?: (record: DecisionRecord) => void };
 
 const SEVERITIES: Severity[] = ['Critical', 'High', 'Medium', 'Low'];
 type Tri = boolean | null;
@@ -38,9 +38,9 @@ function TriChoice({ legend, value, onChange }: { legend: string; value: Tri; on
   );
 }
 
-export function DecisionPanel({ incident, topTechniqueId }: Props) {
+export function DecisionPanel({ incident, topTechniqueId, onRecorded }: Props) {
   const store = useDecisionStore();
-  const [mode, setMode] = useState<AnalystDecision>('accept');
+  const [mode, setMode] = useState<AnalystDecision | null>(null);
   const [justification, setJustification] = useState('');
   const [techniqueCorrect, setTechniqueCorrect] = useState<Tri>(null);
   const [severityCorrect, setSeverityCorrect] = useState<Tri>(null);
@@ -50,13 +50,14 @@ export function DecisionPanel({ incident, topTechniqueId }: Props) {
   const [busy, setBusy] = useState(false);
   const [record, setRecord] = useState<DecisionRecord | null>(null);
 
-  const needsJustification = mode !== 'accept';
+  const needsJustification = mode === 'diverge' || mode === 'mark_wrong';
   const missingJustification = needsJustification && justification.trim().length === 0;
 
   // Diverging means changing something: same technique and severity is just an accept.
   const divergeUnchanged = mode === 'diverge' && finalTechniqueId === topTechniqueId && finalSeverity === incident.severity;
 
   const submit = async () => {
+    if (mode === null) return;
     if (missingJustification) {
       setError('Justification is required to diverge or mark the analysis as wrong.');
       return;
@@ -73,6 +74,7 @@ export function DecisionPanel({ incident, topTechniqueId }: Props) {
         finalSeverity: mode === 'diverge' ? finalSeverity : undefined,
       });
       setRecord(rec);
+      onRecorded?.(rec);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not record the decision.');
     } finally {
@@ -197,10 +199,17 @@ export function DecisionPanel({ incident, topTechniqueId }: Props) {
         </p>
       )}
 
+      {mode === null && (
+        <p id="decision-hint" className="text-xs text-text-secondary">
+          Choose an action to enable Submit decision.
+        </p>
+      )}
+
       <button
         type="button"
         onClick={() => void submit()}
-        disabled={busy || !store.ready || divergeUnchanged}
+        disabled={mode === null || busy || !store.ready || divergeUnchanged}
+        aria-describedby={mode === null ? 'decision-hint' : undefined}
         className="w-full px-3 py-2 rounded-lg bg-accent text-white text-xs font-bold disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
       >
         {busy ? 'Recording...' : 'Submit decision'}

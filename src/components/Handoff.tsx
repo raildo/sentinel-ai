@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
-import { Card } from './UI';
+import { NoIncidentState } from './NoIncidentState';
 import { getIncident } from '../constants';
 import { HandoffTab } from './handoff/HandoffTab';
 import { AutomationPreviewTab } from './handoff/AutomationPreviewTab';
@@ -11,18 +11,17 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'preview', label: 'Preview: Automation phase' },
 ];
 
-export const Handoff = ({ incidentId }: { incidentId: string | null }) => {
+export const Handoff = ({ incidentId, onGoToTriage }: { incidentId: string | null; onGoToTriage?: () => void }) => {
   const [active, setActive] = useState<TabId>('handoff');
   const refs = useRef<Record<TabId, HTMLButtonElement | null>>({ handoff: null, preview: null });
   const incident = incidentId ? getIncident(incidentId) : undefined;
 
   if (!incident) {
     return (
-      <Card>
-        <p role="status" className="text-sm text-text-secondary">
-          No incident selected. Open a case from the triage inbox to hand it off or preview automation.
-        </p>
-      </Card>
+      <NoIncidentState
+        description="Pick an incident in the Triage Inbox to hand it off or preview automation."
+        onGoToTriage={onGoToTriage}
+      />
     );
   }
 

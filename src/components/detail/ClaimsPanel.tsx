@@ -5,9 +5,11 @@ type Props = {
   analysis: Analysis;
   selectedClaimId: string | null;
   onSelectClaim: (claimId: string | null, evidenceIds: string[]) => void;
+  /** The score stays out of the text until the analyst has opened evidence. */
+  scoreRevealed: boolean;
 };
 
-export function ClaimsPanel({ analysis, selectedClaimId, onSelectClaim }: Props) {
+export function ClaimsPanel({ analysis, selectedClaimId, onSelectClaim, scoreRevealed }: Props) {
   const kept = analysis.claims.filter((c) => !c.discarded);
   const discarded = analysis.claims.filter((c) => c.discarded);
   const { validation } = analysis;
@@ -32,7 +34,10 @@ export function ClaimsPanel({ analysis, selectedClaimId, onSelectClaim }: Props)
           <ShieldAlert size={14} className="text-danger shrink-0 mt-0.5" aria-hidden="true" />
           <span>
             Possible prompt injection detected in attacker-controlled data. {validation.discardedClaims} claim(s)
-            discarded by the validator. Score unchanged at {validation.scoreBefore}% (before) and {validation.scoreAfter}% (after).
+            discarded by the validator.{' '}
+            {scoreRevealed
+              ? `Score unchanged at ${validation.scoreBefore}% (before) and ${validation.scoreAfter}% (after).`
+              : 'Score unchanged by the discarded claim. Open an evidence item to see it.'}
           </span>
         </div>
       )}

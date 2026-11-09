@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DecisionStoreProvider, useDecisionStore } from '../state/DecisionStore';
 import { MOCK_ANALYSES, MOCK_INCIDENTS, SCENARIO_IDS, getAnalysis, getIncident } from '../constants';
+import { DEMO_BASE_TIME } from '../domain/clock';
 import { sortQueue } from '../domain/queue';
 import { TriageInbox } from './TriageInbox';
 import { IncidentDetail } from './IncidentDetail';
@@ -26,7 +27,11 @@ async function findTrailRow(id: string): Promise<HTMLElement> {
   return cell.closest('tr') as HTMLElement;
 }
 
-async function submitReady(user: ReturnType<typeof userEvent.setup>) {
+async function submitReady(
+  user: ReturnType<typeof userEvent.setup>,
+  choice: string | null = 'Accept recommendation',
+) {
+  if (choice) await user.click(screen.getByRole('button', { name: choice }));
   const submit = screen.getByRole('button', { name: 'Submit decision' });
   await waitFor(() => expect(submit).toBeEnabled());
   await user.click(submit);
@@ -65,13 +70,76 @@ describe('decision flow', () => {
     expect(screen.getByRole('button', { name: 'Submit decision' })).toBeDisabled();
     const current = getIncident(NEW_CASE)!.severity;
     await user.selectOptions(screen.getByLabelText('Final severity'), current === 'Low' ? 'Medium' : 'Low');
-    await submitReady(user);
+    await submitReady(user, null);
     expect(await screen.findByRole('alert')).toHaveTextContent(/Justification is required/);
     expect(screen.queryByText('Divergence recorded')).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/Justification/), 'Lateral movement, not execution');
     await user.click(screen.getByRole('button', { name: 'Submit decision' }));
     expect(await screen.findByText('Divergence recorded')).toBeInTheDocument();
+  });
+});
+
+describe('decision panel', () => {
+  it('keeps Submit disabled until the analyst picks an action', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const submit = screen.getByRole('button', { name: 'Submit decision' });
+    expect(screen.getByRole('button', { name: 'Accept recommendation' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Diverge' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Mark analysis as wrong' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText('Choose an action to enable Submit decision.')).toBeInTheDocument();
+    await waitFor(() => expect(submit).toBeDisabled());
+    await user.click(screen.getByRole('button', { name: 'Accept recommendation' }));
+    await waitFor(() => expect(submit).toBeEnabled());
+    expect(screen.queryByText('Choose an action to enable Submit decision.')).not.toBeInTheDocument();
+  });
+
+  it('keeps the evidence counter and the revealed score on screen after the decision', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const score = getAnalysis(NEW_CASE)!.score;
+    await user.click(screen.getByRole('button', { name: /Open evidence ev-1/ }));
+    await user.click(screen.getByRole('button', { name: /Open evidence ev-2/ }));
+    expect(screen.getByText(/2\/3 opened/)).toBeInTheDocument();
+    await submitReady(user);
+    expect(await screen.findByText('Recommendation accepted')).toBeInTheDocument();
+    expect(screen.getByText(/2\/3 opened/)).toBeInTheDocument();
+    expect(screen.queryByText('Open an evidence item to reveal the score')).not.toBeInTheDocument();
+    expect(screen.getAllByText(`${score}%`)[0].closest('[aria-hidden="true"]')).toBeNull();
+  });
+});
+
+describe('handoff without a selected incident', () => {
+  it('shows the empty state with a way back to the triage inbox', async () => {
+    const user = userEvent.setup();
+    const goToTriage = vi.fn();
+    render(
+      <DecisionStoreProvider>
+        <Handoff incidentId={null} onGoToTriage={goToTriage} />
+      </DecisionStoreProvider>,
+    );
+    expect(screen.getByRole('heading', { name: 'No incident selected' })).toBeInTheDocument();
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Go to Triage Inbox' }));
+    expect(goToTriage).toHaveBeenCalledOnce();
+  });
+});
+
+describe('cloud event clock', () => {
+  it('stamps the event with the domain demo clock, not the real clock', async () => {
+    render(
+      <DecisionStoreProvider>
+        <Handoff incidentId={NEW_CASE} />
+      </DecisionStoreProvider>,
+    );
+    const payload = await screen.findByRole('region', { name: 'CloudEvents payload' });
+    const time = /"time": "([^"]+)"/.exec(payload.textContent ?? '')?.[1];
+    expect(time).toBeDefined();
+    const delta = Date.parse(time!) - Date.parse(DEMO_BASE_TIME);
+    expect(delta).toBeGreaterThanOrEqual(0);
+    expect(delta).toBeLessThan(60_000);
+    expect(Math.abs(Date.now() - Date.parse(time!))).toBeGreaterThan(60_000);
   });
 });
 
@@ -227,10 +295,23 @@ describe('P1.4 scenarios', () => {
 
     renderDetail(SCENARIO_IDS.PROMPT_INJECTION);
     const alert = screen.getByText(/Possible prompt injection/);
-    expect(alert).toHaveTextContent(
+    expect(alert).toHaveTextContent(`${analysis.validation.discardedClaims} claim(s)`);
+  });
+
+  it('prompt injection: does not leak the score in the alert before the score is revealed', async () => {
+    const user = userEvent.setup();
+    const analysis = getAnalysis(SCENARIO_IDS.PROMPT_INJECTION)!;
+    renderDetail(SCENARIO_IDS.PROMPT_INJECTION);
+    const alert = screen.getByText(/Possible prompt injection/);
+    expect(alert).toHaveTextContent('Score unchanged by the discarded claim. Open an evidence item to see it.');
+    expect(alert).not.toHaveTextContent(`${analysis.validation.scoreBefore}%`);
+    expect(alert).not.toHaveTextContent(`${analysis.validation.scoreAfter}%`);
+
+    const incident = getIncident(SCENARIO_IDS.PROMPT_INJECTION)!;
+    await user.click(screen.getByRole('button', { name: new RegExp(`Open evidence ${incident.evidence[0].id}`) }));
+    expect(screen.getByText(/Possible prompt injection/)).toHaveTextContent(
       `Score unchanged at ${analysis.validation.scoreBefore}% (before) and ${analysis.validation.scoreAfter}% (after)`,
     );
-    expect(alert).toHaveTextContent(`${analysis.validation.discardedClaims} claim(s)`);
   });
 
   it('degraded mode: the alert shows in the case view', () => {
