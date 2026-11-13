@@ -1,132 +1,252 @@
-import React from 'react';
-import { 
-  Search, 
-  Filter, 
-  MoreHorizontal, 
-  CheckCircle2, 
-  AlertTriangle,
-  Clock,
-  ExternalLink
-} from 'lucide-react';
-import { Card, Badge, Button } from './UI';
-import { MOCK_INCIDENTS } from '../constants';
+import React, { useMemo, useState } from 'react';
+import { Search, Filter, ShieldAlert } from 'lucide-react';
+import { Card, Badge, Button, type BadgeVariant } from './UI';
+import { MOCK_INCIDENTS, MOCK_ANALYSES } from '../constants';
 import { motion } from 'motion/react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { useDecisionStore } from '../state/DecisionStore';
+import { sortQueue, queueCounts, effectiveWorkflowStatus, isKev } from '../domain/queue';
+import { computeGovernanceMetrics } from '../domain/metrics';
+import { cn } from '../lib/utils';
+import type { Analysis, Incident, Severity, WorkflowStatus } from '../types';
+
+const SEVERITY_BADGE: Record<Severity, BadgeVariant> = {
+  Critical: 'critical',
+  High: 'high',
+  Medium: 'medium',
+  Low: 'low',
+};
+
+const STATUS_LABEL: Record<WorkflowStatus, string> = {
+  new: 'New',
+  in_review: 'In review',
+  decided: 'Decided',
+  handed_off: 'Handed off',
+};
+
+const SEVERITIES: Severity[] = ['Critical', 'High', 'Medium', 'Low'];
+
+function formatMinutes(minutes: number | null): string {
+  if (minutes === null) return '--';
+  const totalSeconds = Math.round(minutes * 60);
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}m ${String(s).padStart(2, '0')}s`;
+}
+
+const analysisFor = (analyses: readonly Analysis[], id: string): Analysis | undefined =>
+  analyses.find((a) => a.incidentId === id);
 
 export const TriageInbox = ({ onSelectIncident }: { onSelectIncident: (id: string) => void }) => {
+  const { decisions, handedOffIds } = useDecisionStore();
+  const [query, setQuery] = useState('');
+  const [severityFilter, setSeverityFilter] = useState<Severity | 'all'>('all');
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  const sorted = useMemo(() => sortQueue(MOCK_INCIDENTS, MOCK_ANALYSES), []);
+  const counts = useMemo(
+    () => queueCounts(MOCK_INCIDENTS, decisions, handedOffIds, MOCK_ANALYSES),
+    [decisions, handedOffIds],
+  );
+  const metrics = useMemo(
+    () => computeGovernanceMetrics({ decisions, analyses: MOCK_ANALYSES, golden: [] }),
+    [decisions],
+  );
+
+  const openAnalyses = useMemo(
+    () =>
+      MOCK_INCIDENTS.filter((i) => {
+        const st = effectiveWorkflowStatus(i, decisions, handedOffIds);
+        return st === 'new' || st === 'in_review';
+      })
+        .map((i) => analysisFor(MOCK_ANALYSES, i.id))
+        .filter((a): a is Analysis => a !== undefined),
+    [decisions, handedOffIds],
+  );
+  const avgScore = openAnalyses.length
+    ? Math.round(openAnalyses.reduce((acc, a) => acc + a.score, 0) / openAnalyses.length)
+    : null;
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return sorted.filter((inc: Incident) => {
+      if (severityFilter !== 'all' && inc.severity !== severityFilter) return false;
+      if (!q) return true;
+      const techniques = analysisFor(MOCK_ANALYSES, inc.id)?.techniquesTop3 ?? [];
+      const haystack = [
+        inc.id,
+        inc.title,
+        inc.host,
+        inc.user ?? '',
+        inc.source,
+        inc.cve?.id ?? '',
+        ...techniques.flatMap((t) => [t.technique.id, t.technique.name]),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [sorted, query, severityFilter]);
+
+  const criticalOpen = counts.bySeverity.Critical;
+
   return (
     <div className="flex-1 overflow-y-auto bg-bg p-8 space-y-8 animate-in fade-in duration-500">
-      {/* Header */}
       <div className="flex justify-between items-end border-b border-border pb-6">
         <div>
           <h1 className="text-2xl font-bold text-text-primary tracking-tight">Triage Inbox</h1>
-          <p className="text-text-secondary mt-1 text-sm">You have <span className="text-danger font-medium">3 critical</span> incidents requiring attention.</p>
+          <p className="text-text-secondary mt-1 text-sm">
+            You have <span className="text-danger font-medium">{criticalOpen} critical</span> open{' '}
+            {criticalOpen === 1 ? 'incident' : 'incidents'} requiring attention.
+          </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 relative">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" size={14} />
-            <input 
-              type="text" 
-              placeholder="Search..." 
-              className="bg-surface border border-border rounded-lg pl-9 pr-4 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent transition-all w-48"
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search id, host, CVE, technique..."
+              aria-label="Search incidents"
+              className="bg-surface border border-border rounded-lg pl-9 pr-4 py-1.5 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent transition-all w-64"
             />
           </div>
-          <Button variant="secondary" className="px-3 h-8"><Filter size={14} /></Button>
+          <Button
+            variant="secondary"
+            className={cn('px-3 h-8', severityFilter !== 'all' && 'border-accent text-accent')}
+            aria-label="Filter by severity"
+            aria-expanded={filterOpen}
+            onClick={() => setFilterOpen((o) => !o)}
+          >
+            <Filter size={14} />
+            {severityFilter !== 'all' && <span className="text-xs">{severityFilter}</span>}
+          </Button>
+          {filterOpen && (
+            <div className="absolute right-0 top-10 z-10 w-40 rounded-lg border border-border bg-surface shadow-lg py-1">
+              {(['all', ...SEVERITIES] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => {
+                    setSeverityFilter(s);
+                    setFilterOpen(false);
+                  }}
+                  className={cn(
+                    'w-full text-left px-3 py-1.5 text-xs hover:bg-bg',
+                    severityFilter === s ? 'text-accent' : 'text-text-primary',
+                  )}
+                >
+                  {s === 'all' ? 'All severities' : s}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Stats Row */}
       <div className="grid grid-cols-4 gap-5">
         <Card className="bg-surface border-border">
-          <p className="text-[10px] text-text-secondary font-bold tracking-widest uppercase mb-2">Critical Alerts</p>
-          <p className="text-3xl font-extrabold text-danger tracking-tighter">08</p>
+          <p className="text-[10px] text-text-secondary font-bold tracking-widest uppercase mb-2">Critical Open</p>
+          <p className="text-3xl font-extrabold text-danger tracking-tighter">{String(criticalOpen).padStart(2, '0')}</p>
         </Card>
         <Card className="bg-surface border-border">
           <p className="text-[10px] text-text-secondary font-bold tracking-widest uppercase mb-2">Avg MTTR</p>
-          <p className="text-3xl font-extrabold text-text-primary tracking-tighter">14m 22s</p>
+          <p className="text-3xl font-extrabold text-text-primary tracking-tighter">{formatMinutes(metrics.mttrMinutes)}</p>
+          <p className="text-[10px] text-text-secondary mt-1">{metrics.decisionCount} decisions</p>
         </Card>
         <Card className="bg-surface border-border">
-          <p className="text-[10px] text-text-secondary font-bold tracking-widest uppercase mb-2">AI Confidence</p>
-          <p className="text-3xl font-extrabold text-text-primary tracking-tighter">82%</p>
+          <p className="text-[10px] text-text-secondary font-bold tracking-widest uppercase mb-2">Avg Score (open)</p>
+          <p className="text-3xl font-extrabold text-text-primary tracking-tighter">{avgScore === null ? '--' : `${avgScore}%`}</p>
         </Card>
         <Card className="bg-surface border-border">
           <p className="text-[10px] text-text-secondary font-bold tracking-widest uppercase mb-2">Pending Review</p>
-          <p className="text-3xl font-extrabold text-text-primary tracking-tighter">12</p>
+          <p className="text-3xl font-extrabold text-text-primary tracking-tighter">{counts.open}</p>
+          {counts.kevOpen > 0 && <p className="text-[10px] text-danger mt-1">{counts.kevOpen} in CISA KEV</p>}
         </Card>
       </div>
 
-      {/* Incident Table */}
       <div className="bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-border bg-bg/50">
-              <th className="p-4 text-[11px] font-bold uppercase tracking-widest text-text-secondary">Incident ID</th>
+              <th className="p-4 text-[11px] font-bold uppercase tracking-widest text-text-secondary">Incident</th>
+              <th className="p-4 text-[11px] font-bold uppercase tracking-widest text-text-secondary">Severity</th>
+              <th className="p-4 text-[11px] font-bold uppercase tracking-widest text-text-secondary">Source</th>
+              <th className="p-4 text-[11px] font-bold uppercase tracking-widest text-text-secondary">MITRE Top 3</th>
+              <th className="p-4 text-[11px] font-bold uppercase tracking-widest text-text-secondary text-center">Score</th>
               <th className="p-4 text-[11px] font-bold uppercase tracking-widest text-text-secondary">Status</th>
-              <th className="p-4 text-[11px] font-bold uppercase tracking-widest text-text-secondary">MITRE Technique</th>
-              <th className="p-4 text-[11px] font-bold uppercase tracking-widest text-text-secondary text-center">Confidence</th>
-              <th className="p-4 text-[11px] font-bold uppercase tracking-widest text-text-secondary">Timestamp</th>
+              <th className="p-4 text-[11px] font-bold uppercase tracking-widest text-text-secondary">Detected</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {MOCK_INCIDENTS.map((incident) => (
-              <motion.tr 
-                key={incident.id}
-                whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.02)' }}
-                className="group cursor-pointer transition-colors"
-                onClick={() => onSelectIncident(incident.id)}
-              >
-                <td className="p-4 font-mono text-xs text-accent font-bold uppercase tracking-tighter">{incident.id.split('-').pop()}</td>
-                <td className="p-4">
-                  <Badge variant={incident.status.toLowerCase() as any}>
-                    {incident.status}
-                  </Badge>
+            {visible.length === 0 && (
+              <tr>
+                <td colSpan={7} className="p-8 text-center text-sm text-text-secondary">
+                  No incidents match the current search or filter.
                 </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-3">
-                    <span className="px-2 py-0.5 rounded bg-text-secondary/5 border border-text-secondary/10 text-[10px] font-mono text-text-secondary">
-                      {incident.techniques[0].id}
-                    </span>
-                    <span className="text-sm font-medium text-text-primary group-hover:text-accent transition-colors">{incident.techniques[0].name}</span>
-                  </div>
-                </td>
-                <td className="p-4">
-                  <div className="flex items-center justify-center gap-3">
-                    <div className="w-6 h-6 rounded-full border-2 border-border relative flex items-center justify-center">
-                      <div 
-                        className="absolute inset-[-2px] rounded-full border-2 border-accent" 
-                        style={{ clipPath: `inset(0 0 0 0)`, maskImage: `conic-gradient(black ${incident.confidenceScore}%, transparent 0)` }} 
-                      />
-                      <span className="text-[8px] font-bold text-text-primary">{incident.confidenceScore}</span>
+              </tr>
+            )}
+            {visible.map((incident) => {
+              const analysis = analysisFor(MOCK_ANALYSES, incident.id);
+              const status = effectiveWorkflowStatus(incident, decisions, handedOffIds);
+              return (
+                <motion.tr
+                  key={incident.id}
+                  whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.02)' }}
+                  className="group cursor-pointer transition-colors"
+                  onClick={() => onSelectIncident(incident.id)}
+                >
+                  <td className="p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-accent font-bold tracking-tighter">{incident.id}</span>
+                      {isKev(incident) && (
+                        <Badge variant="critical" title={`${incident.cve?.id ?? 'CVE'} is in the CISA KEV catalog`}>
+                          <ShieldAlert size={10} className="inline mr-1 -mt-0.5" />
+                          KEV
+                        </Badge>
+                      )}
                     </div>
-                  </div>
-                </td>
-                <td className="p-4">
-                  <span className="text-xs text-text-secondary font-mono">
-                    {new Date(incident.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </span>
-                </td>
-              </motion.tr>
-            ))}
+                    <p className="text-sm text-text-primary mt-1 group-hover:text-accent transition-colors">{incident.title}</p>
+                  </td>
+                  <td className="p-4">
+                    <Badge variant={SEVERITY_BADGE[incident.severity]}>{incident.severity}</Badge>
+                  </td>
+                  <td className="p-4">
+                    <Badge variant="default">{incident.source}</Badge>
+                  </td>
+                  <td className="p-4">
+                    <div className="space-y-1">
+                      {(analysis?.techniquesTop3 ?? []).slice(0, 3).map((t) => (
+                        <div key={t.technique.id} className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded bg-text-secondary/5 border border-text-secondary/10 text-[10px] font-mono text-text-secondary">
+                            {t.technique.id}
+                          </span>
+                          <span className="text-xs text-text-primary">{t.technique.name}</span>
+                          <span className="text-[10px] font-mono text-text-secondary">{Math.round(t.probability * 100)}%</span>
+                        </div>
+                      ))}
+                      {!analysis && <span className="text-xs text-text-secondary">No analysis</span>}
+                    </div>
+                  </td>
+                  <td className="p-4 text-center">
+                    <span className="text-sm font-bold text-text-primary">{analysis ? analysis.score : '--'}</span>
+                    {analysis?.degraded && <p className="text-[9px] text-warning font-mono uppercase">degraded</p>}
+                  </td>
+                  <td className="p-4">
+                    <Badge variant={status === 'decided' || status === 'handed_off' ? 'success' : 'default'}>
+                      {STATUS_LABEL[status]}
+                    </Badge>
+                  </td>
+                  <td className="p-4">
+                    <span className="text-xs text-text-secondary font-mono">
+                      {new Date(incident.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
+                  </td>
+                </motion.tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
     </div>
   );
 };
-
-const Activity = (props: any) => (
-  <svg
-    {...props}
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-  </svg>
-);

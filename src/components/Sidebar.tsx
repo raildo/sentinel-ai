@@ -4,14 +4,13 @@ import {
   Map,
   ShieldAlert,
   History,
-  Terminal,
-  Activity,
   ChevronRight,
   Users,
+  type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-type ScreenType = 'triage' | 'detail' | 'containment' | 'audit' | 'team';
+export type ScreenType = 'triage' | 'detail' | 'handoff' | 'audit' | 'team';
 
 interface SidebarProps {
   currentScreen: ScreenType;
@@ -19,10 +18,10 @@ interface SidebarProps {
 }
 
 export const Sidebar = ({ currentScreen, onScreenChange }: SidebarProps) => {
-  const navItems = [
+  const navItems: { id: ScreenType; label: string; icon: LucideIcon; persona: string }[] = [
     { id: 'triage', label: 'Triage Inbox', icon: Inbox, persona: 'Ana' },
     { id: 'detail', label: 'Evidence Mapper', icon: Map, persona: 'AI Analysis' },
-    { id: 'containment', label: 'Action Center', icon: ShieldAlert, persona: 'Responder' },
+    { id: 'handoff', label: 'Handoff', icon: ShieldAlert, persona: 'Responder' },
     { id: 'audit', label: 'Audit Dashboard', icon: History, persona: 'Carlos' },
     { id: 'team', label: 'Team', icon: Users, persona: 'GRUPO 12' },
   ];
@@ -43,7 +42,7 @@ export const Sidebar = ({ currentScreen, onScreenChange }: SidebarProps) => {
         {navItems.map((item) => (
           <button
             key={item.id}
-            onClick={() => onScreenChange(item.id as ScreenType)}
+            onClick={() => onScreenChange(item.id)}
             className={cn(
               "w-full flex items-center justify-between px-6 py-3 transition-all group",
               currentScreen === item.id 
@@ -62,17 +61,6 @@ export const Sidebar = ({ currentScreen, onScreenChange }: SidebarProps) => {
           </button>
         ))}
         
-        <div className="pt-8 px-6 pb-2 mb-2 text-[10px] uppercase font-bold tracking-widest text-zinc-600">
-          Operations
-        </div>
-        <button className="w-full flex items-center gap-3 px-6 py-3 hover:bg-bg hover:text-text-primary transition-colors">
-          <Terminal size={18} className="opacity-60" />
-          <span className="text-sm font-medium">Console</span>
-        </button>
-        <button className="w-full flex items-center gap-3 px-6 py-3 hover:bg-bg hover:text-text-primary transition-colors">
-          <Activity size={18} className="opacity-60" />
-          <span className="text-sm font-medium">Threat Intel</span>
-        </button>
       </nav>
 
       <div className="p-6 border-t border-border">
