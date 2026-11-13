@@ -32,7 +32,7 @@
     "@testing-library/user-event": "^14.6.8",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.4",
-    "autoprefixer": "^10.4.21",
+    "autoprefixer": "^10.6.2",
     "dependency-cruiser": "^18.7.2",
     "eslint": "^9.39.5",
     "eslint-plugin-jsx-a11y": "^6.10.2",
