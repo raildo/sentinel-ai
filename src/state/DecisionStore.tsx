@@ -57,6 +57,9 @@ export type DecisionStore = {
   /** Index tampered by the demo control, null if none */
   tamperedIndex: number | null;
 
+  /** Current time on the domain (demo) clock, ISO 8601. Single time source for the trail and exported events. */
+  nowIso: () => string;
+
   /** Marks the moment the analyst opened the case (starts the decision timer). Idempotent. */
   startReview: (incidentId: string) => void;
   /** Records the first opening of an evidence item. Idempotent per evidence. */
@@ -121,6 +124,8 @@ export function DecisionStoreProvider({ children }: { children: ReactNode }) {
     queueRef.current = run;
     return run;
   }, []);
+
+  const nowIso = useCallback(() => demoNowIso(mountedAtRef.current), []);
 
   const startReview = useCallback((incidentId: string) => {
     if (startsRef.current[incidentId] === undefined) startsRef.current[incidentId] = Date.now();
@@ -288,6 +293,7 @@ export function DecisionStoreProvider({ children }: { children: ReactNode }) {
       isHandedOff,
       handedOffDecisionId,
       tamperedIndex,
+      nowIso,
       startReview,
       recordEvidenceOpened,
       getOpenedEvidence,
@@ -299,7 +305,7 @@ export function DecisionStoreProvider({ children }: { children: ReactNode }) {
       tamperRecord,
       reset,
     }),
-    [ready, decisions, handedOffIds, isHandedOff, handedOffDecisionId, tamperedIndex, startReview, recordEvidenceOpened, getOpenedEvidence, hasOpenedEvidence, submitDecision, latestDecisionFor, markHandedOff, verify, tamperRecord, reset],
+    [ready, decisions, handedOffIds, isHandedOff, handedOffDecisionId, tamperedIndex, nowIso, startReview, recordEvidenceOpened, getOpenedEvidence, hasOpenedEvidence, submitDecision, latestDecisionFor, markHandedOff, verify, tamperRecord, reset],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -1,8 +1,7 @@
 import React, { Suspense, lazy, useState } from 'react';
-import { Map } from 'lucide-react';
 import { Sidebar, type ScreenType } from './components/Sidebar';
 import { DecisionStoreProvider } from './state/DecisionStore';
-import { Button } from './components/UI';
+import { NoIncidentState } from './components/NoIncidentState';
 
 const TriageInbox = lazy(() => import('./components/TriageInbox').then((m) => ({ default: m.TriageInbox })));
 const IncidentDetail = lazy(() => import('./components/IncidentDetail').then((m) => ({ default: m.IncidentDetail })));
@@ -13,17 +12,6 @@ const Team = lazy(() => import('./components/Team').then((m) => ({ default: m.Te
 const ScreenFallback = () => (
   <div className="flex-1 flex items-center justify-center text-text-secondary text-sm font-mono" role="status">
     Loading...
-  </div>
-);
-
-const EvidenceEmptyState = ({ onGoToTriage }: { onGoToTriage: () => void }) => (
-  <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-bg text-center p-8">
-    <Map size={32} className="text-text-secondary opacity-60" />
-    <div>
-      <h1 className="text-xl font-bold text-text-primary tracking-tight">No incident selected</h1>
-      <p className="text-text-secondary mt-1 text-sm">Pick an incident in the Triage Inbox to see its evidence map.</p>
-    </div>
-    <Button variant="secondary" onClick={onGoToTriage}>Go to Triage Inbox</Button>
   </div>
 );
 
@@ -44,10 +32,13 @@ export default function App() {
         return selectedIncidentId ? (
           <IncidentDetail incidentId={selectedIncidentId} onBack={goToTriage} />
         ) : (
-          <EvidenceEmptyState onGoToTriage={goToTriage} />
+          <NoIncidentState
+            description="Pick an incident in the Triage Inbox to see its evidence map."
+            onGoToTriage={goToTriage}
+          />
         );
       case 'handoff':
-        return <Handoff incidentId={selectedIncidentId} />;
+        return <Handoff incidentId={selectedIncidentId} onGoToTriage={goToTriage} />;
       case 'audit':
         return <AuditTrail />;
       case 'team':

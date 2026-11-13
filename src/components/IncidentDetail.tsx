@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Cpu, Info } from 'lucide-react';
+import type { DecisionRecord } from '../types';
 import { getAnalysis, getIncident } from '../constants';
 import { useDecisionStore } from '../state/DecisionStore';
 import { EvidenceList } from './detail/EvidenceList';
@@ -17,7 +18,11 @@ export function IncidentDetail({ incidentId, onBack }: { incidentId: string; onB
   const [selectedClaimId, setSelectedClaimId] = useState<string | null>(null);
   const [highlighted, setHighlighted] = useState<string[]>([]);
 
+  // Snapshot of the review at the moment of the decision: the store restarts the review, the screen keeps the receipt.
+  const [receipt, setReceipt] = useState<DecisionRecord | null>(null);
+
   useEffect(() => {
+    setReceipt(null);
     startReview(incidentId);
   }, [incidentId, startReview]);
 
@@ -32,7 +37,8 @@ export function IncidentDetail({ incidentId, onBack }: { incidentId: string; onB
     );
   }
 
-  const openedIds = getOpenedEvidence(incidentId).map((o) => o.evidenceId);
+  const decided = receipt !== null && receipt.incidentId === incidentId;
+  const openedIds = (decided ? receipt.evidenceOpened : getOpenedEvidence(incidentId)).map((o) => o.evidenceId);
   const revealed = openedIds.length > 0;
 
   const onSelectClaim = (claimId: string | null, evidenceIds: string[]) => {
@@ -72,7 +78,9 @@ export function IncidentDetail({ incidentId, onBack }: { incidentId: string; onB
             evidence={incident.evidence}
             highlightedIds={highlighted}
             openedIds={openedIds}
-            onOpen={(evId) => recordEvidenceOpened(incidentId, evId)}
+            onOpen={(evId) => {
+              if (!decided) recordEvidenceOpened(incidentId, evId);
+            }}
           />
         </div>
 
@@ -108,7 +116,11 @@ export function IncidentDetail({ incidentId, onBack }: { incidentId: string; onB
           </section>
 
           <div className="w-full max-w-md mx-auto">
-            <DecisionPanel incident={incident} topTechniqueId={analysis.techniquesTop3[0]?.technique.id ?? ''} />
+            <DecisionPanel
+              incident={incident}
+              topTechniqueId={analysis.techniquesTop3[0]?.technique.id ?? ''}
+              onRecorded={setReceipt}
+            />
           </div>
         </div>
 
@@ -127,7 +139,7 @@ export function IncidentDetail({ incidentId, onBack }: { incidentId: string; onB
           </section>
 
           <section aria-labelledby="explanation-meta" className="rounded-xl border border-accent/10 bg-accent/5 p-4 space-y-4">
-            <ClaimsPanel analysis={analysis} selectedClaimId={selectedClaimId} onSelectClaim={onSelectClaim} />
+            <ClaimsPanel analysis={analysis} selectedClaimId={selectedClaimId} onSelectClaim={onSelectClaim} scoreRevealed={revealed} />
             <div className="pt-3 border-t border-accent/10 flex items-center justify-between">
               <span id="explanation-meta" className="text-[9px] text-accent font-bold uppercase tracking-widest">
                 {analysis.promptVersion ? `Prompt ${analysis.promptVersion} · LLM via gateway` : 'No LLM call'}

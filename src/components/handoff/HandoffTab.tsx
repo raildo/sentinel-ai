@@ -7,6 +7,7 @@ import { buildCloudEvent, downloadJson, signEvent, type SignedCloudEvent } from 
 
 export const HandoffTab = ({ incidentId }: { incidentId: string }) => {
   const store = useDecisionStore();
+  const { nowIso } = store;
   const incident = getIncident(incidentId);
   const analysis = getAnalysis(incidentId);
   const decision = store.latestDecisionFor(incidentId);
@@ -21,7 +22,7 @@ export const HandoffTab = ({ incidentId }: { incidentId: string }) => {
     let cancelled = false;
     setSigned(null);
     setError(null);
-    signEvent(buildCloudEvent(incident, analysis, decision, new Date().toISOString()))
+    signEvent(buildCloudEvent(incident, analysis, decision, nowIso()))
       .then((s) => {
         if (!cancelled) setSigned(s);
       })
@@ -31,7 +32,7 @@ export const HandoffTab = ({ incidentId }: { incidentId: string }) => {
     return () => {
       cancelled = true;
     };
-  }, [incident, analysis, decision]);
+  }, [incident, analysis, decision, nowIso]);
 
   if (!incident) return null;
 

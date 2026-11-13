@@ -19,11 +19,11 @@ interface SidebarProps {
 
 export const Sidebar = ({ currentScreen, onScreenChange }: SidebarProps) => {
   const navItems: { id: ScreenType; label: string; icon: LucideIcon; persona: string }[] = [
-    { id: 'triage', label: 'Triage Inbox', icon: Inbox, persona: 'Ana' },
-    { id: 'detail', label: 'Evidence Mapper', icon: Map, persona: 'AI Analysis' },
-    { id: 'handoff', label: 'Handoff', icon: ShieldAlert, persona: 'Responder' },
-    { id: 'audit', label: 'Audit Dashboard', icon: History, persona: 'Carlos' },
-    { id: 'team', label: 'Team', icon: Users, persona: 'GRUPO 12' },
+    { id: 'triage', label: 'Triage Inbox', icon: Inbox, persona: 'Queue' },
+    { id: 'detail', label: 'Evidence Mapper', icon: Map, persona: 'Evidence' },
+    { id: 'handoff', label: 'Handoff', icon: ShieldAlert, persona: 'SOAR / ITSM' },
+    { id: 'audit', label: 'Audit Dashboard', icon: History, persona: 'Decision trail' },
+    { id: 'team', label: 'Team', icon: Users, persona: 'Group 12' },
   ];
 
   return (

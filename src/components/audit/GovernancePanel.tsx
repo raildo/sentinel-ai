@@ -81,8 +81,8 @@ export function GovernancePanel({ decisions }: { decisions: readonly DecisionRec
         <p className="text-[10px] font-bold text-text-secondary uppercase tracking-widest mb-3">
           Calibration by score bin ({m.datasetLabel})
         </p>
-        <div className="h-48">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-48 min-w-[240px]">
+          <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={192} initialDimension={{ width: 480, height: 192 }}>
             <BarChart data={bins}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
               <XAxis dataKey="bin" tick={{ fontSize: 10 }} />
