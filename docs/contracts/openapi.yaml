@@ -1,0 +1,351 @@
+openapi: 3.0.3
+info:
+  title: SecureAI Analyst API
+  version: 1.0.0
+  description: >
+    Contract proposal for the /v1 API. The prototype simulates these calls.
+    The tenant is always taken from the verified token, never from the body.
+servers:
+  - url: https://api.example.invalid/v1
+    description: Placeholder
+security:
+  - bearerAuth: []
+paths:
+  /incidents:
+    get:
+      summary: List incidents in the Triage queue
+      operationId: listIncidents
+      parameters:
+        - name: workflowStatus
+          in: query
+          schema: { $ref: '#/components/schemas/WorkflowStatus' }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Page of incidents
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Incident' }
+                  nextCursor: { type: string, nullable: true }
+        '401': { $ref: '#/components/responses/Error' }
+  /incidents/{incidentId}:
+    get:
+      summary: Get one incident
+      operationId: getIncident
+      parameters:
+        - $ref: '#/components/parameters/IncidentId'
+      responses:
+        '200':
+          description: Incident
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Incident' }
+        '404': { $ref: '#/components/responses/Error' }
+  /incidents/{incidentId}/analysis:
+    get:
+      summary: Get the current analysis (score and explanation)
+      operationId: getAnalysis
+      parameters:
+        - $ref: '#/components/parameters/IncidentId'
+      responses:
+        '200':
+          description: Analysis
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Analysis' }
+        '404': { $ref: '#/components/responses/Error' }
+  /incidents/{incidentId}/evidence/{evidenceId}/opened:
+    post:
+      summary: Record that the analyst opened an evidence item
+      operationId: recordEvidenceOpened
+      parameters:
+        - $ref: '#/components/parameters/IncidentId'
+        - name: evidenceId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Recorded }
+        '404': { $ref: '#/components/responses/Error' }
+  /incidents/{incidentId}/decisions:
+    post:
+      summary: Submit the analyst decision
+      description: >
+        Justification is required for diverge and mark_wrong. The server
+        computes the rapid accept flag from timestamps, not the client.
+      operationId: submitDecision
+      parameters:
+        - $ref: '#/components/parameters/IncidentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecisionRequest' }
+      responses:
+        '201':
+          description: Decision recorded in the chain
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DecisionRecord' }
+        '422': { $ref: '#/components/responses/Error' }
+  /incidents/{incidentId}/handoff:
+    post:
+      summary: Hand the case off to SOAR or ITSM (signed CloudEvents webhook)
+      operationId: handoffIncident
+      parameters:
+        - $ref: '#/components/parameters/IncidentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target, decisionId]
+              properties:
+                target: { type: string, enum: [soar, itsm] }
+                decisionId: { type: string }
+      responses:
+        '202': { description: Accepted for delivery }
+        '409': { $ref: '#/components/responses/Error' }
+  /audit/records:
+    get:
+      summary: List decision records
+      operationId: listDecisionRecords
+      parameters:
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Page of records in chain order
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/DecisionRecord' }
+                  nextCursor: { type: string, nullable: true }
+  /audit/verify:
+    post:
+      summary: Recompute the hash chain and report the first broken record
+      operationId: verifyChain
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [valid, checked]
+                properties:
+                  valid: { type: boolean }
+                  checked: { type: integer }
+                  firstBrokenRecordId: { type: string, nullable: true }
+                  anchor:
+                    $ref: '#/components/schemas/AnchorStatus'
+  /audit/export:
+    get:
+      summary: Export the chain as JSON
+      operationId: exportAudit
+      responses:
+        '200':
+          description: JSON export including hashes
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DecisionRecord' }
+  /governance/metrics:
+    get:
+      summary: Aggregated governance metrics
+      description: Always aggregated per tenant. There is no per-analyst variant of this endpoint.
+      operationId: getGovernanceMetrics
+      responses:
+        '200':
+          description: Metrics
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GovernanceMetrics' }
+  /containment/preview:
+    post:
+      summary: Preview a containment action (no real effect in the MVP)
+      description: >
+        Refuses with 409 if score is below 85 or if there is no recorded
+        approval for the given decision ID.
+      operationId: previewContainment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [incidentId, action, decisionId]
+              properties:
+                incidentId: { type: string }
+                action: { $ref: '#/components/schemas/CatalogAction' }
+                decisionId: { type: string }
+      responses:
+        '200':
+          description: Preview with rollback
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [executed, rollback]
+                properties:
+                  executed: { type: boolean, enum: [false] }
+                  rollback: { type: string }
+        '409': { $ref: '#/components/responses/Error' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    IncidentId:
+      name: incidentId
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [code, message]
+            properties:
+              code: { type: string }
+              message: { type: string }
+  schemas:
+    WorkflowStatus:
+      type: string
+      enum: [new, in_review, decided, handed_off]
+    Severity:
+      type: string
+      enum: [critical, high, medium, low]
+    Incident:
+      type: object
+      required: [id, tenantId, source, ocsfClass, severity, workflowStatus, host, createdAt]
+      properties:
+        id: { type: string }
+        tenantId: { type: string }
+        source: { type: string, enum: [Sentinel, Splunk] }
+        ocsfClass: { type: string, example: detection_finding }
+        severity: { $ref: '#/components/schemas/Severity' }
+        workflowStatus: { $ref: '#/components/schemas/WorkflowStatus' }
+        host: { type: string }
+        createdAt: { type: string, format: date-time }
+    TechniqueProbability:
+      type: object
+      required: [techniqueId, probability]
+      properties:
+        techniqueId: { type: string, example: T1110 }
+        probability: { type: number, minimum: 0, maximum: 1 }
+    Claim:
+      type: object
+      required: [text, evidenceIds]
+      properties:
+        text: { type: string }
+        evidenceIds:
+          type: array
+          minItems: 1
+          items: { type: string }
+    Analysis:
+      type: object
+      required: [incidentId, score, band, scoreModelVersion, promptVersion, techniques, evidenceIds, claims, degraded]
+      properties:
+        incidentId: { type: string }
+        score: { type: integer, minimum: 0, maximum: 100 }
+        band: { type: string, enum: [low, medium, high, very_high] }
+        scoreModelVersion: { type: string }
+        promptVersion: { type: string }
+        techniques:
+          type: array
+          maxItems: 3
+          items: { $ref: '#/components/schemas/TechniqueProbability' }
+        evidenceIds:
+          type: array
+          items: { type: string }
+        claims:
+          type: array
+          items: { $ref: '#/components/schemas/Claim' }
+        expectedEvidenceNotFound:
+          type: array
+          items: { type: string }
+        degraded: { type: boolean }
+    DecisionRequest:
+      type: object
+      required: [action, techniqueCorrect, severityCorrect]
+      properties:
+        action: { type: string, enum: [accept, diverge, mark_wrong] }
+        justification:
+          type: string
+          description: Required when action is diverge or mark_wrong
+        techniqueCorrect: { type: boolean }
+        severityCorrect: { type: boolean }
+    DecisionRecord:
+      type: object
+      required: [id, tenantId, incidentId, recommendation, decision, scoreModelVersion, promptVersion, hash, prevHash, decidedAt]
+      properties:
+        id: { type: string }
+        tenantId: { type: string }
+        incidentId: { type: string }
+        recommendation:
+          type: object
+          properties:
+            score: { type: integer }
+            techniqueId: { type: string }
+            severity: { $ref: '#/components/schemas/Severity' }
+        decision: { $ref: '#/components/schemas/DecisionRequest' }
+        evidenceOpened:
+          type: array
+          items:
+            type: object
+            properties:
+              evidenceId: { type: string }
+              openedAt: { type: string, format: date-time }
+        rapidAccept: { type: boolean }
+        scoreModelVersion: { type: string }
+        promptVersion: { type: string }
+        decidedAt: { type: string, format: date-time }
+        prevHash: { type: string, description: SHA-256 hex of the previous record }
+        hash: { type: string, description: SHA-256 hex of this record plus prevHash }
+    AnchorStatus:
+      type: object
+      properties:
+        store: { type: string, example: s3-object-lock }
+        lastAnchoredAt: { type: string, format: date-time }
+        lastAnchoredHash: { type: string }
+        simulated: { type: boolean }
+    CatalogAction:
+      type: string
+      enum: [isolate_host, disable_account, block_ip_with_ttl]
+    GovernanceMetrics:
+      type: object
+      description: Aggregated only. simulated is true while the golden dataset is simulated.
+      required: [simulated, mttrMinutes, acceptanceRate, divergenceRate, rapidAcceptRate, ece, top3Accuracy, groundedness, degradedRate, costPerIncidentUsd]
+      properties:
+        simulated: { type: boolean }
+        mttrMinutes: { type: number }
+        acceptanceRate: { type: number }
+        divergenceRate: { type: number }
+        rapidAcceptRate: { type: number }
+        ece: { type: number }
+        top3Accuracy: { type: number }
+        groundedness: { type: number }
+        degradedRate: { type: number }
+        costPerIncidentUsd: { type: number }

@@ -1,4 +1,4 @@
-# SecureAI Analyst — Cyber Incident Responder
+# SecureAI Analyst
 
 [![CI](https://github.com/raildo/sentinel-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/raildo/sentinel-ai/actions/workflows/ci.yml)
 
@@ -15,7 +15,7 @@ An AI-powered cybersecurity incident triage and response demo built for FIAP Pó
 
 ## Run Locally
 
-**Prerequisites:** Node.js 18+
+**Prerequisites:** Node.js 22 (see `.nvmrc`; `nvm use`)
 
 1. Install dependencies: `npm install`
 2. Start the dev server: `npm run dev`
@@ -31,11 +31,31 @@ An AI-powered cybersecurity incident triage and response demo built for FIAP Pó
 
 ```
 src/
-├── components/     # All UI screens and reusable components
-├── constants.ts    # Mock data: incidents, techniques, audit logs
-├── types.ts        # TypeScript type definitions
-└── lib/utils.ts    # Utility helpers (cn for class merging)
+├── components/     # UI screens and reusable components
+├── constants.ts    # Mock data: incidents, techniques, audit records
+├── types.ts        # Incident, Analysis and DecisionRecord types
+└── lib/            # Utilities (class merging, hashing helpers)
+prompts/
+└── explainer/v1.md # Versioned explainer prompt (LLM only explains)
+docs/
+├── adr/            # Architecture decision records
+├── riscos.md       # Risk register, KRIs and appetite
+├── threat-model/   # STRIDE and LINDDUN
+├── model-cards/    # Score model card (simulated)
+└── contracts/      # OpenAPI /v1 and AsyncAPI (CloudEvents)
 ```
+
+## Documentation and Evidence
+
+The Phase 4 plan was applied to this prototype: calibrated score separated from the explanation, analyst decision panel, hash-chained audit trail, pseudonymization view, aggregated governance metrics and a handoff instead of automatic containment. All metrics are from a simulated golden dataset.
+
+- [Phase 4 document](https://docs.google.com/document/d/1IlFgb6ZyW5DVhsV1yj1GIOsVeQP_hjTwVTGgSHUOZ-g/edit?usp=sharing)
+- ADRs: [docs/adr](docs/adr/README.md)
+- Risks, KRIs and appetite: [docs/riscos.md](docs/riscos.md)
+- Threat model: [docs/threat-model](docs/threat-model/README.md)
+- Model card (simulated): [docs/model-cards/score-v0.md](docs/model-cards/score-v0.md)
+- Contracts: [OpenAPI](docs/contracts/openapi.yaml), [AsyncAPI](docs/contracts/asyncapi.yaml)
+- Versioned prompt: [prompts/explainer/v1.md](prompts/explainer/v1.md)
 
 ## Team
 
